@@ -3,129 +3,95 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { clearAuthToken } from "../auth/authStorage";
 
-type User = {
+type CoverLetter = {
   id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  created_at?: string;
-};
-
-type Post = {
-  id: string;
-  title: string;
-  description: string;
-};
-
-type AIPost = {
-  id: string;
-  topic: string;
-  tone: string;
-  length: string;
+  company_name: string;
+  vacancy_text: string;
+  applicant_name: string;
   language: string;
-  title: string;
-  content: string;
+  cover_letter: string;
 };
 
 const inputClassName =
   "w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:bg-white/10 focus:ring-2 focus:ring-cyan-300/20";
 
 const selectClassName =
-  "w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none transition focus:border-cyan-300/60 focus:bg-white/10 focus:ring-2 focus:ring-cyan-300/20 text-white";
+  "w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300/60 focus:bg-white/10 focus:ring-2 focus:ring-cyan-300/20";
 
 const cardClassName =
   "relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/55 p-6 shadow-[0_20px_80px_rgba(15,23,42,0.45)] backdrop-blur-xl";
 
+const apiBaseUrl = "http://localhost:8000";
+
 const Content = () => {
   const navigate = useNavigate();
-  const [users, setUsers] = useState<User[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [aiposts, setAiposts] = useState<AIPost[]>([]);
-  const [name, setName] = useState("");
-  const [surname, setSurname] = useState("");
-  const [email, setEmail] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [topic, setTopic] = useState("");
-  const [tone, setTone] = useState("");
-  const [length, setLength] = useState("");
-  const [language, setLanguage] = useState("");
+  const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
+  const [companyName, setCompanyName] = useState("");
+  const [vacancyText, setVacancyText] = useState("");
+  const [applicantName, setApplicantName] = useState("");
+  const [language, setLanguage] = useState("Russian");
+  const [coverLetterError, setCoverLetterError] = useState("");
+  const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
 
   const handleLogout = () => {
     clearAuthToken();
     navigate("/login");
   };
 
-  useEffect(() => {
-    const getUser = async () => {
-      try {
-        const { data } = await axios.get("http://localhost:8000/users/");
-        setUsers(data);
-      } catch (e) {}
-    };
-    getUser();
-  }, []);
-
-  useEffect(() => {
-    const getPost = async () => {
-      try {
-        const { data } = await axios.get("http://localhost:8000/posts/");
-        setPosts(data);
-      } catch (e) {}
-    };
-    getPost();
-  }, []);
-
-  useEffect(() => {
-    const getAIPost = async () => {
-      try {
-        const { data } = await axios.get("http://localhost:8000/ai/");
-        setAiposts(data);
-      } catch (e) {}
-    };
-    getAIPost();
-  }, []);
-
-  const addUser = async () => {
+  const fetchCoverLetters = async () => {
     try {
-      await axios.post("http://localhost:8000/users/", {
-        last_name: name,
-        email,
-        first_name: surname,
-      });
-      await axios.get("http://localhost:8000/users/");
-      setName("");
-      setSurname("");
-      setEmail("");
-    } catch (e) {}
+      const { data } = await axios.get(`${apiBaseUrl}/ai/cover-letters`);
+      setCoverLetters(data);
+    } catch (error) {
+      console.error("Failed to fetch cover letters", error);
+    }
   };
 
-  const addPost = async () => {
-    try {
-      await axios.post("http://localhost:8000/posts/", {
-        title,
-        description,
-      });
-      await axios.get("http://localhost:8000/posts/");
-      setDescription("");
-      setTitle("");
-    } catch (e) {}
-  };
+  useEffect(() => {
+    void fetchCoverLetters();
+  }, []);
 
-  const addAIPost = async () => {
+  const addCoverLetter = async () => {
+    if (!companyName.trim() || !vacancyText.trim() || !applicantName.trim()) {
+      setCoverLetterError("Заполни компанию, текст вакансии и имя кандидата.");
+      return;
+    }
+
+    setCoverLetterError("");
+    setIsGeneratingCoverLetter(true);
+
     try {
-      await axios.post("http://localhost:8000/ai/generate-post", {
-        topic,
-        tone,
-        length,
+      await axios.post(`${apiBaseUrl}/ai/generate-cover-letter`, {
+        company_name: companyName.trim(),
+        vacancy_text: vacancyText.trim(),
+        applicant_name: applicantName.trim(),
         language,
       });
-      await axios.get("http://localhost:8000/ai/");
-      setTopic("");
-      setTone("");
-      setLength("");
-      setLanguage("");
-    } catch (e) {}
+
+      await fetchCoverLetters();
+      setCompanyName("");
+      setVacancyText("");
+      setApplicantName("");
+      setLanguage("Russian");
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const detail = error.response?.data?.detail;
+
+        if (typeof detail === "string") {
+          setCoverLetterError(detail);
+        } else {
+          setCoverLetterError(
+            "Не получилось сгенерировать сопроводительное письмо. Проверь поля и попробуй еще раз.",
+          );
+        }
+      } else {
+        setCoverLetterError(
+          "Не получилось сгенерировать сопроводительное письмо. Проверь поля и попробуй еще раз.",
+        );
+      }
+    } finally {
+      setIsGeneratingCoverLetter(false);
+    }
   };
 
   return (
@@ -136,369 +102,162 @@ const Content = () => {
         <div className="absolute bottom-0 left-1/3 h-96 w-96 rounded-full bg-emerald-400/10 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <section className="mb-8 rounded-[32px] border border-white/10 bg-white/5 px-6 py-8 shadow-[0_24px_120px_rgba(8,15,30,0.55)] backdrop-blur-xl">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <span className="inline-flex rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.28em] text-cyan-200">
-                Content Studio
+                Cover Letter Studio
               </span>
               <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
-                Панель для пользователей, постов и AI-генерации
+                Генерация сопроводительных писем
               </h1>
               <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
-                Всё на одной странице: создавай пользователей, публикуй обычные
-                посты и генерируй тексты через ИИ в аккуратном, читаемом
-                интерфейсе.
+                Вставь компанию, текст вакансии и имя кандидата, а мы отправим запрос в AI и
+                покажем готовые письма ниже.
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-center">
-                <div className="text-2xl font-black text-white">
-                  {users.length}
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-6 py-4 text-center">
+                <div className="text-2xl font-black text-white">{coverLetters.length}</div>
                 <div className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-400">
-                  users
+                  cover letters
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-center">
-                <div className="text-2xl font-black text-white">
-                  {posts.length}
-                </div>
-                <div className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-400">
-                  posts
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-center">
-                <div className="text-2xl font-black text-white">
-                  {aiposts.length}
-                </div>
-                <div className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-400">
-                  ai posts
-                </div>
-              </div>
-            </div>
 
-            <button
-              className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-              onClick={handleLogout}
-              type="button"
-            >
-              Выйти
-            </button>
+              <button
+                className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                onClick={handleLogout}
+                type="button"
+              >
+                Выйти
+              </button>
+            </div>
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-3">
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <section className={cardClassName}>
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">
-                  User Creation
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-white">
-                  Создание пользователя
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Форма регистрации и список уже созданных пользователей.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-cyan-300/10 px-3 py-2 text-sm font-semibold text-cyan-100">
-                {users.length} шт.
-              </div>
+            <div className="mb-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
+                Cover Letter AI
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                Сгенерировать новое письмо
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Используется `POST /ai/generate-cover-letter`.
+              </p>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Имя
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-200">Компания</label>
                 <input
                   className={inputClassName}
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Например, Кирилл"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  placeholder="ООО Сима-ленд"
                 />
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Фамилия
-                </label>
-                <input
-                  className={inputClassName}
-                  type="text"
-                  value={surname}
-                  onChange={(e) => setSurname(e.target.value)}
-                  placeholder="Например, Кушов"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Email
-                </label>
-                <input
-                  className={inputClassName}
-                  type="text"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="mail@example.com"
-                />
-              </div>
-              <button
-                className="w-full rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-200"
-                onClick={addUser}
-              >
-                Зарегистрировать
-              </button>
-            </div>
 
-            <div className="mt-8">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">
-                  Последние пользователи
-                </h3>
-              </div>
-              <div className="space-y-3">
-                {users.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400">
-                    Пользователи пока не найдены.
-                  </div>
-                ) : (
-                  users.map((user) => (
-                    <article
-                      key={user.id}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="font-semibold text-white">
-                            {user.first_name} {user.last_name}
-                          </h4>
-                          <p className="mt-1 text-sm text-slate-300">
-                            {user.email}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300">
-                          ID
-                        </span>
-                      </div>
-                    </article>
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className={cardClassName}>
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-amber-200/80">
-                  Post Builder
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-white">
-                  Создание поста
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Минималистичная форма для публикации обычных постов.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-100">
-                {posts.length} шт.
-              </div>
-            </div>
-
-            <div className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Заголовок
-                </label>
-                <input
-                  className={inputClassName}
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="О чём пост?"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Описание
+                  Текст вакансии
                 </label>
                 <textarea
-                  className={`${inputClassName} min-h-32 resize-none`}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Коротко раскрой мысль поста"
+                  className={`${inputClassName} min-h-48 resize-none`}
+                  value={vacancyText}
+                  onChange={(event) => setVacancyText(event.target.value)}
+                  placeholder="Вставь требования, обязанности и условия вакансии"
                 />
               </div>
-              <button
-                className="w-full rounded-2xl bg-amber-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-200"
-                onClick={addPost}
-              >
-                Создать пост
-              </button>
-            </div>
 
-            <div className="mt-8 space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">
-                Лента постов
-              </h3>
-              {posts.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400">
-                  Постов пока нет.
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-200">
+                  Имя кандидата
+                </label>
+                <input
+                  className={inputClassName}
+                  type="text"
+                  value={applicantName}
+                  onChange={(event) => setApplicantName(event.target.value)}
+                  placeholder="Кирилл Кушов"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-200">Язык</label>
+                <select
+                  className={selectClassName}
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value)}
+                >
+                  <option value="Russian" className="bg-slate-950 text-white">
+                    Russian
+                  </option>
+                  <option value="English" className="bg-slate-950 text-white">
+                    English
+                  </option>
+                </select>
+              </div>
+
+              {coverLetterError ? (
+                <div className="rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+                  {coverLetterError}
                 </div>
-              ) : (
-                posts.map((post) => (
-                  <article
-                    key={post.id}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                  >
-                    <h4 className="font-semibold text-white">{post.title}</h4>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">
-                      {post.description}
-                    </p>
-                  </article>
-                ))
-              )}
+              ) : null}
+
+              <button
+                className="w-full rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-emerald-200"
+                onClick={addCoverLetter}
+                type="button"
+              >
+                {isGeneratingCoverLetter
+                  ? "Генерируем письмо..."
+                  : "Сгенерировать сопроводительное письмо"}
+              </button>
             </div>
           </section>
 
           <section className={cardClassName}>
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
-                  AI Generator
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-white">
-                  Генерация поста с ИИ
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Задай тему, стиль и язык, а затем получи готовый материал.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-emerald-300/10 px-3 py-2 text-sm font-semibold text-emerald-100">
-                {aiposts.length} шт.
-              </div>
+            <div className="mb-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">
+                History
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-white">История писем</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Здесь выводятся записи из `GET /ai/cover-letters`.
+              </p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Тема
-                </label>
-                <input
-                  className={inputClassName}
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="Например, история React"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Тон
-                </label>
-                <input
-                  className={inputClassName}
-                  type="text"
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value)}
-                  placeholder="Friendly, Expert, Casual..."
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
-                    Длина
-                  </label>
-                  <select
-                    className={selectClassName}
-                    value={length}
-                    onChange={(e) => setLength(e.target.value)}
-                  >
-                    <option
-                      value=""
-                      disabled
-                      className="text-slate-500 bg-slate-950"
-                    >
-                      Выбери вариант
-                    </option>
-                    <option value="small" className="bg-slate-950 text-white">
-                      small
-                    </option>
-                    <option value="high" className="bg-slate-950 text-white">
-                      high
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
-                    Язык
-                  </label>
-                  <select
-                    className={selectClassName}
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
-                  >
-                    <option
-                      value=""
-                      disabled
-                      className="text-slate-500 bg-slate-950"
-                    >
-                      Выбери язык
-                    </option>
-                    <option value="Russian" className="bg-slate-950 text-white">
-                      Russian
-                    </option>
-                    <option value="English" className="bg-slate-950 text-white">
-                      English
-                    </option>
-                  </select>
-                </div>
-              </div>
-              <button
-                className="w-full rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-emerald-200"
-                onClick={addAIPost}
-              >
-                Сгенерировать пост
-              </button>
-            </div>
-
-            <div className="mt-8 space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-300">
-                AI результаты
-              </h3>
-              {aiposts.length === 0 ? (
+            <div className="space-y-3">
+              {coverLetters.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400">
-                  Сгенерированных постов пока нет.
+                  Сопроводительных писем пока нет.
                 </div>
               ) : (
-                aiposts.map((post) => (
+                coverLetters.map((letter) => (
                   <article
-                    key={post.id}
+                    key={letter.id}
                     className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
                   >
                     <div className="flex flex-wrap gap-2">
                       <span className="rounded-full bg-emerald-300/10 px-2 py-1 text-xs text-emerald-100">
-                        {post.language || "No language"}
+                        {letter.language || "No language"}
                       </span>
                       <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300">
-                        {post.tone || "No tone"}
-                      </span>
-                      <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300">
-                        {post.length || "No length"}
+                        {letter.company_name}
                       </span>
                     </div>
-                    <h4 className="mt-3 font-semibold text-white">
-                      {post.title || `Post about ${post.topic}`}
-                    </h4>
+                    <h4 className="mt-3 font-semibold text-white">{letter.applicant_name}</h4>
                     <p className="mt-2 text-sm text-slate-400">
-                      Тема: {post.topic}
+                      Вакансия для: {letter.company_name}
                     </p>
-                    <p className="mt-3 max-h-52 overflow-hidden whitespace-pre-line text-sm leading-6 text-slate-300">
-                      {post.content}
+                    <p className="mt-3 max-h-72 overflow-auto whitespace-pre-line text-sm leading-6 text-slate-300">
+                      {letter.cover_letter}
                     </p>
                   </article>
                 ))

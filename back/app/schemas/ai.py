@@ -1,27 +1,24 @@
-
 from pydantic import BaseModel
 
 
-class AIGeneratePostRequest(BaseModel):
-    topic: str
-    tone: str
-    length: str
+class GenerateCoverLetterRequest(BaseModel):
+    company_name: str
+    vacancy_text: str
+    applicant_name: str
     language: str
 
 
-class AIGeneratePostResponse(BaseModel):
-    title: str
-    content: str
+class GenerateCoverLetterResponse(BaseModel):
+    cover_letter: str
 
 
-class AIPostOut(BaseModel):
+class CoverLetterOut(BaseModel):
     id: str
-    topic: str
-    tone: str
-    length: str
+    company_name: str
+    vacancy_text: str
+    applicant_name: str
     language: str
-    title: str
-    content: str
+    cover_letter: str
 
     class Config:
         from_attributes = True

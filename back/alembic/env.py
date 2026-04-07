@@ -5,7 +5,8 @@ from sqlalchemy import create_engine, pool
 from alembic import context
 from app.core.config import settings
 from app.db.base import Base
-from app.models import post, user
+from app.models import ai, user
+
 
 config = context.config
 

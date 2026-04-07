@@ -1,7 +1,7 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { clearAuthToken } from "../auth/authStorage";
+import { clearAuthToken, getAccessToken } from "../auth/authStorage";
 
 type CoverLetter = {
   id: string;
@@ -38,11 +38,43 @@ const Content = () => {
     navigate("/login");
   };
 
+  const getAuthHeaders = () => {
+    const token = getAccessToken();
+
+    if (!token) {
+      return null;
+    }
+
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
+  const handleUnauthorized = () => {
+    clearAuthToken();
+    navigate("/login");
+  };
+
   const fetchCoverLetters = async () => {
+    const headers = getAuthHeaders();
+
+    if (!headers) {
+      setIsGeneratingCoverLetter(false);
+      handleUnauthorized();
+      return;
+    }
+
     try {
-      const { data } = await axios.get(`${apiBaseUrl}/ai/cover-letters`);
+      const { data } = await axios.get(`${apiBaseUrl}/ai/cover-letters`, {
+        headers,
+      });
       setCoverLetters(data);
     } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
       console.error("Failed to fetch cover letters", error);
     }
   };
@@ -60,13 +92,26 @@ const Content = () => {
     setCoverLetterError("");
     setIsGeneratingCoverLetter(true);
 
+    const headers = getAuthHeaders();
+
+    if (!headers) {
+      handleUnauthorized();
+      return;
+    }
+
     try {
-      await axios.post(`${apiBaseUrl}/ai/generate-cover-letter`, {
-        company_name: companyName.trim(),
-        vacancy_text: vacancyText.trim(),
-        applicant_name: applicantName.trim(),
-        language,
-      });
+      await axios.post(
+        `${apiBaseUrl}/ai/generate-cover-letter`,
+        {
+          company_name: companyName.trim(),
+          vacancy_text: vacancyText.trim(),
+          applicant_name: applicantName.trim(),
+          language,
+        },
+        {
+          headers,
+        },
+      );
 
       await fetchCoverLetters();
       setCompanyName("");
@@ -75,6 +120,11 @@ const Content = () => {
       setLanguage("Russian");
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          handleUnauthorized();
+          return;
+        }
+
         const detail = error.response?.data?.detail;
 
         if (typeof detail === "string") {
@@ -146,9 +196,6 @@ const Content = () => {
               <h2 className="mt-2 text-2xl font-bold text-white">
                 Сгенерировать новое письмо
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Используется `POST /ai/generate-cover-letter`.
-              </p>
             </div>
 
             <div className="space-y-4">
@@ -184,7 +231,7 @@ const Content = () => {
                   type="text"
                   value={applicantName}
                   onChange={(event) => setApplicantName(event.target.value)}
-                  placeholder="Кирилл Кушов"
+                  placeholder="Иван Иванов"
                 />
               </div>
 
@@ -228,9 +275,6 @@ const Content = () => {
                 History
               </p>
               <h2 className="mt-2 text-2xl font-bold text-white">История писем</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Здесь выводятся записи из `GET /ai/cover-letters`.
-              </p>
             </div>
 
             <div className="space-y-3">

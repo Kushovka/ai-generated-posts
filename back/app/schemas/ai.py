@@ -14,6 +14,7 @@ class GenerateCoverLetterResponse(BaseModel):
 
 class CoverLetterOut(BaseModel):
     id: str
+    user_id: str
     company_name: str
     vacancy_text: str
     applicant_name: str

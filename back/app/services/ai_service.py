@@ -23,7 +23,7 @@ def generate_cover_letter(data: GenerateCoverLetterRequest) -> GenerateCoverLett
             ),
             "stream": False,
         },
-        timeout=60.0,
+        timeout=360.0,
     )
 
     result = response.json()

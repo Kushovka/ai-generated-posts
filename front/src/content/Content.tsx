@@ -12,6 +12,14 @@ type CoverLetter = {
   cover_letter: string;
 };
 
+type CurrentUser = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  created_at?: string;
+};
+
 const inputClassName =
   "w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:bg-white/10 focus:ring-2 focus:ring-cyan-300/20";
 
@@ -26,6 +34,7 @@ const apiBaseUrl = "http://localhost:8000";
 const Content = () => {
   const navigate = useNavigate();
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [vacancyText, setVacancyText] = useState("");
   const [applicantName, setApplicantName] = useState("");
@@ -79,13 +88,43 @@ const Content = () => {
     }
   };
 
+  const fetchCurrentUser = async () => {
+    const headers = getAuthHeaders();
+
+    if (!headers) {
+      handleUnauthorized();
+      return;
+    }
+
+    try {
+      const { data } = await axios.get(`${apiBaseUrl}/users/me`, {
+        headers,
+      });
+      setCurrentUser(data);
+      setApplicantName(
+        (prevValue) =>
+          prevValue || `${data.first_name} ${data.last_name}`.trim(),
+      );
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+
+      console.error("Failed to fetch current user", error);
+    }
+  };
+
   useEffect(() => {
+    void fetchCurrentUser();
     void fetchCoverLetters();
   }, []);
 
   const addCoverLetter = async () => {
     if (!companyName.trim() || !vacancyText.trim() || !applicantName.trim()) {
-      setCoverLetterError("Заполни компанию, текст вакансии и имя кандидата.");
+      setCoverLetterError(
+        "Заполни компанию, текст вакансии и имя кандидата.",
+      );
       return;
     }
 
@@ -152,42 +191,101 @@ const Content = () => {
         <div className="absolute bottom-0 left-1/3 h-96 w-96 rounded-full bg-emerald-400/10 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <section className="mb-8 rounded-[32px] border border-white/10 bg-white/5 px-6 py-8 shadow-[0_24px_120px_rgba(8,15,30,0.55)] backdrop-blur-xl">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
+      <div className="relative mx-auto max-w-[1500px] px-4 pt-10 sm:px-6 lg:px-8">
+        <section className="mb-8 overflow-hidden rounded-[32px] border border-white/10 bg-white/5 px-6 py-8 shadow-[0_24px_120px_rgba(8,15,30,0.55)] backdrop-blur-xl sm:px-8">
+          <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr] xl:items-stretch">
+            <div className="relative">
+              <div className="absolute -left-8 top-0 h-28 w-28 rounded-full bg-cyan-300/10 blur-3xl" />
               <span className="inline-flex rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.28em] text-cyan-200">
                 Cover Letter Studio
               </span>
               <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">
                 Генерация сопроводительных писем
               </h1>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
-                Вставь компанию, текст вакансии и имя кандидата, а мы отправим запрос в AI и
-                покажем готовые письма ниже.
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+                Вставь компанию, текст вакансии и имя кандидата. Сервис отправит
+                запрос в AI, соберет сопроводительное письмо и сразу покажет
+                историю последних генераций.
               </p>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-6 py-4 text-center">
-                <div className="text-2xl font-black text-white">{coverLetters.length}</div>
-                <div className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-400">
-                  cover letters
+              <div className="mt-8 flex flex-wrap gap-3">
+                <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                    Формат
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    Company + Vacancy + Applicant
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3">
+                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                    Endpoint
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    POST /ai/generate-cover-letter
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <button
-                className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-                onClick={handleLogout}
-                type="button"
-              >
-                Выйти
-              </button>
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto] xl:grid-cols-1">
+              {currentUser ? (
+                <div className="rounded-[28px] border border-cyan-300/20 bg-gradient-to-br from-cyan-300/12 via-slate-950/40 to-slate-950/70 px-5 py-5 text-left shadow-[0_12px_40px_rgba(34,211,238,0.08)]">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.24em] text-cyan-100/80">
+                        Current User
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-white">
+                        {[currentUser.first_name, currentUser.last_name]
+                          .filter(Boolean)
+                          .join(" ")}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-300">
+                        {currentUser.email}
+                      </div>
+                    </div>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-cyan-100">
+                      {currentUser.first_name?.[0]}
+                      {currentUser.last_name?.[0]}
+                    </div>
+                  </div>
+                  {currentUser.created_at ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-xs text-slate-300">
+                      С нами с{" "}
+                      {new Date(currentUser.created_at).toLocaleDateString(
+                        "ru-RU",
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_auto]">
+                <div className="rounded-[28px] border border-white/10 bg-slate-900/60 px-6 py-5 text-center">
+                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                    cover letters
+                  </div>
+                  <div className="mt-2 text-3xl font-black text-white">
+                    {coverLetters.length}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-400">
+                    уже доступно в истории
+                  </div>
+                </div>
+
+                <button
+                  className="rounded-[28px] border border-white/10 bg-white/5 px-6 py-5 text-sm font-semibold text-white transition hover:bg-white/10 xl:min-w-[150px]"
+                  onClick={handleLogout}
+                  type="button"
+                >
+                  Выйти
+                </button>
+              </div>
             </div>
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid gap-6 pb-10 xl:grid-cols-[0.95fr_1.05fr]">
           <section className={cardClassName}>
             <div className="mb-6">
               <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
@@ -200,7 +298,9 @@ const Content = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">Компания</label>
+                <label className="mb-2 block text-sm font-medium text-slate-200">
+                  Компания
+                </label>
                 <input
                   className={inputClassName}
                   type="text"
@@ -236,7 +336,9 @@ const Content = () => {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">Язык</label>
+                <label className="mb-2 block text-sm font-medium text-slate-200">
+                  Язык
+                </label>
                 <select
                   className={selectClassName}
                   value={language}
@@ -274,7 +376,9 @@ const Content = () => {
               <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">
                 History
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-white">История писем</h2>
+              <h2 className="mt-2 text-2xl font-bold text-white">
+                История писем
+              </h2>
             </div>
 
             <div className="space-y-3">
@@ -296,7 +400,9 @@ const Content = () => {
                         {letter.company_name}
                       </span>
                     </div>
-                    <h4 className="mt-3 font-semibold text-white">{letter.applicant_name}</h4>
+                    <h4 className="mt-3 font-semibold text-white">
+                      {letter.applicant_name}
+                    </h4>
                     <p className="mt-2 text-sm text-slate-400">
                       Вакансия для: {letter.company_name}
                     </p>

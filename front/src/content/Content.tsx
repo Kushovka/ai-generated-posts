@@ -1,15 +1,19 @@
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { MdContentCopy } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { clearAuthToken, getAccessToken } from "../auth/authStorage";
+import clsx from "clsx";
 
 type CoverLetter = {
   id: string;
+  user_id?: string;
   company_name: string;
   vacancy_text: string;
   applicant_name: string;
   language: string;
   cover_letter: string;
+  created_at?: string;
 };
 
 type CurrentUser = {
@@ -18,6 +22,12 @@ type CurrentUser = {
   last_name: string;
   email: string;
   created_at?: string;
+};
+
+type CoverLetterGroup = {
+  dateKey: string;
+  dateLabel: string;
+  letters: CoverLetter[];
 };
 
 const inputClassName =
@@ -31,6 +41,29 @@ const cardClassName =
 
 const apiBaseUrl = "http://localhost:8000";
 
+const formatDateLabel = (value?: string) => {
+  if (!value) {
+    return "Без даты";
+  }
+
+  return new Date(value).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const formatTimeLabel = (value?: string) => {
+  if (!value) {
+    return null;
+  }
+
+  return new Date(value).toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 const Content = () => {
   const navigate = useNavigate();
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
@@ -41,6 +74,38 @@ const Content = () => {
   const [language, setLanguage] = useState("Russian");
   const [coverLetterError, setCoverLetterError] = useState("");
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
+  const [copiedLetterId, setCopiedLetterId] = useState<string | null>(null);
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>(
+    {},
+  );
+
+  const groupedCoverLetters = useMemo<CoverLetterGroup[]>(() => {
+    const sortedLetters = [...coverLetters].sort((a, b) => {
+      const left = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const right = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return right - left;
+    });
+
+    const groups = new Map<string, CoverLetterGroup>();
+
+    sortedLetters.forEach((letter) => {
+      const dateKey = letter.created_at
+        ? new Date(letter.created_at).toISOString().slice(0, 10)
+        : "unknown-date";
+
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, {
+          dateKey,
+          dateLabel: formatDateLabel(letter.created_at),
+          letters: [],
+        });
+      }
+
+      groups.get(dateKey)?.letters.push(letter);
+    });
+
+    return Array.from(groups.values());
+  }, [coverLetters]);
 
   const handleLogout = () => {
     clearAuthToken();
@@ -62,6 +127,25 @@ const Content = () => {
   const handleUnauthorized = () => {
     clearAuthToken();
     navigate("/login");
+  };
+
+  const toggleDateGroup = (dateKey: string) => {
+    setExpandedDates((current) => ({
+      ...current,
+      [dateKey]: !current[dateKey],
+    }));
+  };
+
+  const handleCopyLetter = async (letter: CoverLetter) => {
+    try {
+      await navigator.clipboard.writeText(letter.cover_letter);
+      setCopiedLetterId(letter.id);
+      window.setTimeout(() => {
+        setCopiedLetterId((current) => (current === letter.id ? null : current));
+      }, 1800);
+    } catch (error) {
+      console.error("Failed to copy cover letter", error);
+    }
   };
 
   const fetchCoverLetters = async () => {
@@ -120,11 +204,27 @@ const Content = () => {
     void fetchCoverLetters();
   }, []);
 
+  useEffect(() => {
+    if (groupedCoverLetters.length === 0) {
+      return;
+    }
+
+    setExpandedDates((current) => {
+      const next = { ...current };
+
+      groupedCoverLetters.forEach((group, index) => {
+        if (!(group.dateKey in next)) {
+          next[group.dateKey] = index === 0;
+        }
+      });
+
+      return next;
+    });
+  }, [groupedCoverLetters]);
+
   const addCoverLetter = async () => {
     if (!companyName.trim() || !vacancyText.trim() || !applicantName.trim()) {
-      setCoverLetterError(
-        "Заполни компанию, текст вакансии и имя кандидата.",
-      );
+      setCoverLetterError("Заполни компанию, текст вакансии и имя кандидата.");
       return;
     }
 
@@ -191,7 +291,7 @@ const Content = () => {
         <div className="absolute bottom-0 left-1/3 h-96 w-96 rounded-full bg-emerald-400/10 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-[1500px] px-4 pt-10 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-[1750px] px-4 pt-10 sm:px-6 lg:px-8">
         <section className="mb-8 overflow-hidden rounded-[32px] border border-white/10 bg-white/5 px-6 py-8 shadow-[0_24px_120px_rgba(8,15,30,0.55)] backdrop-blur-xl sm:px-8">
           <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr] xl:items-stretch">
             <div className="relative">
@@ -207,24 +307,6 @@ const Content = () => {
                 запрос в AI, соберет сопроводительное письмо и сразу покажет
                 историю последних генераций.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                    Формат
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    Company + Vacancy + Applicant
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                    Endpoint
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    POST /ai/generate-cover-letter
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] xl:grid-cols-1">
@@ -285,8 +367,8 @@ const Content = () => {
           </div>
         </section>
 
-        <div className="grid gap-6 pb-10 xl:grid-cols-[0.95fr_1.05fr]">
-          <section className={cardClassName}>
+        <div className="flex gap-6 pb-10 ">
+          <section className={clsx(cardClassName, "w-1/3")}>
             <div className="mb-6">
               <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
                 Cover Letter AI
@@ -306,7 +388,7 @@ const Content = () => {
                   type="text"
                   value={companyName}
                   onChange={(event) => setCompanyName(event.target.value)}
-                  placeholder="ООО Сима-ленд"
+                  placeholder="Название компании"
                 />
               </div>
 
@@ -318,7 +400,7 @@ const Content = () => {
                   className={`${inputClassName} min-h-48 resize-none`}
                   value={vacancyText}
                   onChange={(event) => setVacancyText(event.target.value)}
-                  placeholder="Вставь требования, обязанности и условия вакансии"
+                  placeholder="Вставь требования, обязанности и условия вакансии (можешь вставить сюда просто описание вакансии)"
                 />
               </div>
 
@@ -371,7 +453,7 @@ const Content = () => {
             </div>
           </section>
 
-          <section className={cardClassName}>
+          <section className={clsx(cardClassName, "w-full")}>
             <div className="mb-6">
               <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">
                 History
@@ -381,36 +463,90 @@ const Content = () => {
               </h2>
             </div>
 
-            <div className="space-y-3">
-              {coverLetters.length === 0 ? (
+            <div className="space-y-4">
+              {groupedCoverLetters.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400">
                   Сопроводительных писем пока нет.
                 </div>
               ) : (
-                coverLetters.map((letter) => (
-                  <article
-                    key={letter.id}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-emerald-300/10 px-2 py-1 text-xs text-emerald-100">
-                        {letter.language || "No language"}
-                      </span>
-                      <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300">
-                        {letter.company_name}
-                      </span>
+                groupedCoverLetters.map((group) => {
+                  const isExpanded = expandedDates[group.dateKey] ?? false;
+
+                  return (
+                    <div
+                      key={group.dateKey}
+                      className="rounded-[24px] border border-white/10 bg-white/[0.03]"
+                    >
+                      <button
+                        className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-white/[0.03]"
+                        onClick={() => toggleDateGroup(group.dateKey)}
+                        type="button"
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-white">
+                            {group.dateLabel}
+                          </div>
+                          <div className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-400">
+                            {group.letters.length} писем
+                          </div>
+                        </div>
+                        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                          {isExpanded ? "Скрыть" : "Показать"}
+                        </div>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="space-y-3 border-t border-white/10 px-4 py-4">
+                          {group.letters.map((letter) => (
+                            <article
+                              key={letter.id}
+                              className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex flex-wrap gap-2">
+                                  <span className="rounded-full bg-emerald-300/10 px-2 py-1 text-xs text-emerald-100">
+                                    {letter.language || "No language"}
+                                  </span>
+                                  <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300">
+                                    {letter.company_name}
+                                  </span>
+                                  {letter.created_at ? (
+                                    <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-300">
+                                      {formatTimeLabel(letter.created_at)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <button
+                                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10"
+                                  onClick={() => handleCopyLetter(letter)}
+                                  type="button"
+                                >
+                                  <MdContentCopy className="h-4 w-4" />
+                                  {copiedLetterId === letter.id ? "Скопировано" : "Копировать"}
+                                </button>
+                              </div>
+                              <h4 className="mt-3 font-semibold text-white">
+                                {letter.applicant_name}
+                              </h4>
+                              <p className="mt-2 text-sm text-slate-400">
+                                Вакансия для: {letter.company_name}
+                              </p>
+                              {letter.created_at ? (
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Создано: {formatDateLabel(letter.created_at)}{" "}
+                                  в {formatTimeLabel(letter.created_at)}
+                                </p>
+                              ) : null}
+                              <p className="mt-3 max-h-72 overflow-auto whitespace-pre-line text-sm leading-6 text-slate-300">
+                                {letter.cover_letter}
+                              </p>
+                            </article>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                    <h4 className="mt-3 font-semibold text-white">
-                      {letter.applicant_name}
-                    </h4>
-                    <p className="mt-2 text-sm text-slate-400">
-                      Вакансия для: {letter.company_name}
-                    </p>
-                    <p className="mt-3 max-h-72 overflow-auto whitespace-pre-line text-sm leading-6 text-slate-300">
-                      {letter.cover_letter}
-                    </p>
-                  </article>
-                ))
+                  );
+                })
               )}
             </div>
           </section>

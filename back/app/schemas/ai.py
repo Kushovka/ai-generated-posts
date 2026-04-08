@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -20,6 +22,7 @@ class CoverLetterOut(BaseModel):
     applicant_name: str
     language: str
     cover_letter: str
+    created_at: datetime
 
     class Config:
         from_attributes = True

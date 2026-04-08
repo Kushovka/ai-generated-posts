@@ -1,18 +1,19 @@
 from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
 from app.db.dependency import get_db
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+bearer_scheme = HTTPBearer()
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
 ):
-    email = decode_access_token(token)
+    email = decode_access_token(credentials.credentials)
 
     if not email:
         raise HTTPException(status_code=401, detail="Invalid token")

@@ -20,6 +20,7 @@ class UserLogin(BaseModel):
 
 class UserOut(UserBase):
     id: str
+    credits: int
     created_at: datetime
 
     class Config:

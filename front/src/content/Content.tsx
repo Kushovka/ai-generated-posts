@@ -1,9 +1,10 @@
 import axios from "axios";
+import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { MdContentCopy } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { clearAuthToken, getAccessToken } from "../auth/authStorage";
-import clsx from "clsx";
+import TopNavigation from "../shared/TopNavigation";
 
 type CoverLetter = {
   id: string;
@@ -21,6 +22,7 @@ type CurrentUser = {
   first_name: string;
   last_name: string;
   email: string;
+  credits?: number;
   created_at?: string;
 };
 
@@ -141,7 +143,9 @@ const Content = () => {
       await navigator.clipboard.writeText(letter.cover_letter);
       setCopiedLetterId(letter.id);
       window.setTimeout(() => {
-        setCopiedLetterId((current) => (current === letter.id ? null : current));
+        setCopiedLetterId((current) =>
+          current === letter.id ? null : current,
+        );
       }, 1800);
     } catch (error) {
       console.error("Failed to copy cover letter", error);
@@ -253,6 +257,7 @@ const Content = () => {
       );
 
       await fetchCoverLetters();
+      await fetchCurrentUser();
       setCompanyName("");
       setVacancyText("");
       setApplicantName("");
@@ -291,7 +296,9 @@ const Content = () => {
         <div className="absolute bottom-0 left-1/3 h-96 w-96 rounded-full bg-emerald-400/10 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-[1750px] px-4 pt-10 sm:px-6 lg:px-8">
+      <TopNavigation />
+
+      <div className="relative mx-auto max-w-[1750px] px-4 pt-8 sm:px-6 lg:px-8">
         <section className="mb-8 overflow-hidden rounded-[32px] border border-white/10 bg-white/5 px-6 py-8 shadow-[0_24px_120px_rgba(8,15,30,0.55)] backdrop-blur-xl sm:px-8">
           <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr] xl:items-stretch">
             <div className="relative">
@@ -325,6 +332,9 @@ const Content = () => {
                       <div className="mt-1 text-sm text-slate-300">
                         {currentUser.email}
                       </div>
+                      <div className="mt-3 inline-flex rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-emerald-100">
+                        Credits: {currentUser.credits ?? 0}
+                      </div>
                     </div>
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-cyan-100">
                       {currentUser.first_name?.[0]}
@@ -341,28 +351,13 @@ const Content = () => {
                   ) : null}
                 </div>
               ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1fr_auto]">
-                <div className="rounded-[28px] border border-white/10 bg-slate-900/60 px-6 py-5 text-center">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                    cover letters
-                  </div>
-                  <div className="mt-2 text-3xl font-black text-white">
-                    {coverLetters.length}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-400">
-                    уже доступно в истории
-                  </div>
-                </div>
-
-                <button
-                  className="rounded-[28px] border border-white/10 bg-white/5 px-6 py-5 text-sm font-semibold text-white transition hover:bg-white/10 xl:min-w-[150px]"
-                  onClick={handleLogout}
-                  type="button"
-                >
-                  Выйти
-                </button>
-              </div>
+              <button
+                className="rounded-[28px] border border-white/10 bg-white/5 px-6 py-5 text-sm font-semibold text-white transition hover:bg-white/10 xl:min-w-[150px]"
+                onClick={handleLogout}
+                type="button"
+              >
+                Выйти
+              </button>
             </div>
           </div>
         </section>
@@ -522,7 +517,9 @@ const Content = () => {
                                   type="button"
                                 >
                                   <MdContentCopy className="h-4 w-4" />
-                                  {copiedLetterId === letter.id ? "Скопировано" : "Копировать"}
+                                  {copiedLetterId === letter.id
+                                    ? "Скопировано"
+                                    : "Копировать"}
                                 </button>
                               </div>
                               <h4 className="mt-3 font-semibold text-white">

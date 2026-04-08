@@ -12,6 +12,11 @@ class Settings:
     SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
     ALGORITHM = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID", "")
+    YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY", "")
+    YOOKASSA_RETURN_URL = os.getenv(
+        "YOOKASSA_RETURN_URL", "http://localhost:5173/payment-success"
+    )
 
     @property
     def DB_URL(self) -> str:
